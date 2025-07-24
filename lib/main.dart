@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 // Add imports for the puzzle page and BLoC provider
 import 'presentation/pages/puzzle_page.dart';
+import 'presentation/pages/calculation_type_selection_page.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 void main() {
@@ -19,7 +20,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         // TODO: Use app_constants for theme if available
       ),
-      home: const PuzzlePage(),
+      home: const CalculationTypeSelectionPage(),
     );
   }
 }
