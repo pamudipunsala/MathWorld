@@ -124,6 +124,7 @@ class PuzzlePage extends StatelessWidget {
               Expanded(
                 child: BlocBuilder<PuzzleBloc, PuzzleState>(
                   builder: (context, state) {
+                    print('DEBUG UI: gameOver=${state.gameOver}, puzzleComplete=${state.puzzleComplete}, foundGroups=${state.foundGroups.length}/${state.requiredGroups}');
                     if (state.gameOver) {
                       return state.puzzleComplete
                           ? const WinCelebration()

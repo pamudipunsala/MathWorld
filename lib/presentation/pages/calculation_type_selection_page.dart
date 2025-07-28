@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'puzzle_page.dart';
@@ -370,22 +371,13 @@ class LevelSelectionPage extends StatelessWidget {
       : levels = List.generate(10, (i) {
           int gridSize = 5 + (i ~/ 2); // 5,5,6,6,7,7,8,8,9,9
           int numGroups = (gridSize * gridSize / 3).round(); // More groups for larger grids
-          int timeLimit = 60 - (i * 4); // 60,56,52,...
-          CalculationType type;
-          if (i < 3) {
-            type = CalculationType.addition;
-          } else if (i < 6) {
-            type = CalculationType.multiplication;
-          } else if (i < 8) {
-            type = CalculationType.subtraction;
-          } else {
-            type = CalculationType.division;
-          }
+          int timeLimit = max(45, (gridSize * numGroups * 0.5).round());
+          // RESPECT USER'S CHOICE - don't override calculation type
           return Level(
             gridSize: gridSize,
             numGroups: numGroups,
             timeLimit: timeLimit > 20 ? timeLimit : 20,
-            type: type,
+            type: calculationType, // Use user's selected type
             levelNumber: i + 1,
           );
         }),
@@ -444,7 +436,6 @@ class LevelSelectionPage extends StatelessWidget {
                   Text('Level ${level.levelNumber}', style: GoogleFonts.permanentMarker(fontSize: 24)),
                   const SizedBox(height: 6),
                   Text('Grid: ${level.gridSize}x${level.gridSize}', style: GoogleFonts.permanentMarker(fontSize: 16)),
-                  Text('Groups: ${level.numGroups}', style: GoogleFonts.permanentMarker(fontSize: 16)),
                   Text('Time: ${level.timeLimit}s', style: GoogleFonts.permanentMarker(fontSize: 16)),
                 ],
               ),

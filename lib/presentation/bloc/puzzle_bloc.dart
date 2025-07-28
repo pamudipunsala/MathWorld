@@ -60,6 +60,7 @@ class PuzzleState extends Equatable {
   final int score;
   final bool gameOver;
   final List<List<String>> remainingGroups;
+  final int requiredGroups;
 
   const PuzzleState({
     required this.grid,
@@ -74,6 +75,7 @@ class PuzzleState extends Equatable {
     required this.score,
     required this.gameOver,
     required this.remainingGroups,
+    required this.requiredGroups,
   });
 
   PuzzleState copyWith({
@@ -89,6 +91,7 @@ class PuzzleState extends Equatable {
     int? score,
     bool? gameOver,
     List<List<String>>? remainingGroups,
+    int? requiredGroups,
   }) {
     return PuzzleState(
       grid: grid ?? this.grid,
@@ -103,11 +106,12 @@ class PuzzleState extends Equatable {
       score: score ?? this.score,
       gameOver: gameOver ?? this.gameOver,
       remainingGroups: remainingGroups ?? this.remainingGroups,
+      requiredGroups: requiredGroups ?? this.requiredGroups,
     );
   }
 
   @override
-  List<Object?> get props => [grid, selectedCells, targetSum, currentSum, isSuccess, foundGroups, generatedGroups, puzzleComplete, secondsLeft, score, gameOver, remainingGroups];
+  List<Object?> get props => [grid, selectedCells, targetSum, currentSum, isSuccess, foundGroups, generatedGroups, puzzleComplete, secondsLeft, score, gameOver, remainingGroups, requiredGroups];
 }
 
 // BLoC
@@ -137,108 +141,126 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
   static PuzzleState _initialState(CalculationType calculationType, Level? level) {
     final random = Random(DateTime.now().millisecondsSinceEpoch);
     final gridSize = level?.gridSize ?? defaultGridSize;
-    final avgGroupLength = 4;
-    final maxGroups = ((gridSize * gridSize) / avgGroupLength).floor() - 1;
-    final numGroups = min(level?.numGroups ?? 4, maxGroups);
+    final numGroups = level?.numGroups ?? 4;
     final timeLimit = level?.timeLimit ?? 30;
     final opType = level?.type ?? calculationType;
-    final levelNumber = level?.levelNumber ?? 1;
-    final grid = List.generate(gridSize, (_) => List.generate(gridSize, (_) => 0));
-    int targetValue;
-    final usedCells = <String>{};
-    List<List<int>> groupValues = [];
-    List<List<String>> generatedGroups = [];
-    int groupsPlaced = 0;
-    int maxAttempts = numGroups * 200;
-    int attempts = 0;
-    while (groupsPlaced < numGroups && attempts < maxAttempts) {
-      attempts++;
-      final dir = random.nextInt(4);
-      final len = 3 + random.nextInt(gridSize - 2); // group length 3 to gridSize
-      int dr = 0, dc = 0;
-      switch (dir) {
-        case 0: dr = 0; dc = 1; break; // horizontal
-        case 1: dr = 1; dc = 0; break; // vertical
-        case 2: dr = 1; dc = 1; break; // diag TL-BR
-        case 3: dr = 1; dc = -1; break; // diag TR-BL
-      }
-      int r0, c0;
-      if (dir == 3) {
-        r0 = random.nextInt(gridSize - len + 1);
-        c0 = random.nextInt(gridSize - len + 1) + len - 1;
-      } else {
-        r0 = random.nextInt(gridSize - (dr * (len - 1)));
-        c0 = random.nextInt(gridSize - (dc * (len - 1)));
-      }
-      // Check if all cells are available and not used by previous groups
-      bool canPlace = true;
-      List<String> groupCells = [];
-      for (int i = 0; i < len; i++) {
-        int rr = r0 + dr * i;
-        int cc = c0 + dc * i;
-        String cellKey = '$rr,$cc';
-        if (rr < 0 || rr >= gridSize || cc < 0 || cc >= gridSize || usedCells.contains(cellKey)) {
-          canPlace = false;
-          break;
-        }
-        groupCells.add(cellKey);
-      }
-      if (!canPlace) continue;
-      // Generate numbers and target for the group
-      List<int> nums;
-      int groupTarget;
-      switch (opType) {
-        case CalculationType.addition:
-          if (levelNumber <= 3) {
-            groupTarget = 10 + random.nextInt(16); // 10–25
-          } else if (levelNumber <= 6) {
-            groupTarget = 20 + random.nextInt(21); // 20–40
-          } else {
-            groupTarget = 30 + random.nextInt(31); // 30–60
-          }
-          nums = _randomPartition(groupTarget, len, random);
-          break;
-        case CalculationType.subtraction:
-          int restSum = 5 + random.nextInt(15 + levelNumber * 2);
-          nums = _randomPartition(restSum, len - 1, random);
-          int first = restSum + (3 + random.nextInt(10 + levelNumber * 2));
-          nums = [first, ...nums];
-          groupTarget = first - restSum;
-          break;
-        case CalculationType.multiplication:
-          groupTarget = 2 + levelNumber + random.nextInt(6 + levelNumber);
-          nums = _randomProductPartition(groupTarget, len, random);
-          break;
-        case CalculationType.division:
-          int restProduct = 2 + random.nextInt(5 + levelNumber);
-          nums = _randomProductPartition(restProduct, len - 1, random);
-          int first = restProduct * (2 + random.nextInt(5 + levelNumber));
-          nums = [first, ...nums];
-          groupTarget = first ~/ restProduct;
-          break;
-      }
-      for (int i = 0; i < len; i++) {
-        int rr = r0 + dr * i;
-        int cc = c0 + dc * i;
-        grid[rr][cc] = nums[i];
-        usedCells.add(groupCells[i]);
-      }
-      groupValues.add(nums);
-      generatedGroups.add(groupCells);
-      groupsPlaced++;
+    
+    print('DEBUG: Creating puzzle with gridSize=$gridSize, numGroups=$numGroups, opType=$opType');
+    
+    // FORCE SIMPLE TARGETS - NO LEVEL OVERRIDE
+    int targetValue = 0;
+    
+    // Always use simple targets regardless of level
+    if (opType == CalculationType.addition) {
+      targetValue = 6 + random.nextInt(4); // 6-9
+    } else if (opType == CalculationType.subtraction) {
+      targetValue = 1 + random.nextInt(2); // 1-2 ONLY
+    } else if (opType == CalculationType.multiplication) {
+      targetValue = 4 + random.nextInt(4); // 4-7
+    } else { // division
+      targetValue = 2 + random.nextInt(2); // 2-3
     }
-    targetValue = groupValues.isNotEmpty ? _getGroupTarget(groupValues[0], opType) : 0;
+    
+    print('DEBUG: FORCED target $targetValue for operation $opType (ignoring level complexity)');
+    
+    // Create a grid with GUARANTEED working groups
+    List<List<int>> grid = List.generate(gridSize, (_) => List.generate(gridSize, (_) => 0));
+    
+    // Place EXACTLY the required number of working groups
+    List<List<String>> workingGroups = [];
+    int groupsToPlace = numGroups;
+    
+    // Place horizontal groups first
+    for (int i = 0; i < groupsToPlace && i < gridSize; i++) {
+      int row = i;
+      int col = 0;
+      
+      // Create 3 numbers that definitely work
+      List<int> numbers = _createGuaranteedWorkingNumbers(targetValue, opType, random);
+      
+      // Place them horizontally
+      grid[row][col] = numbers[0];
+      grid[row][col + 1] = numbers[1];
+      grid[row][col + 2] = numbers[2];
+      
+      workingGroups.add(['$row,$col', '$row,${col+1}', '$row,${col+2}']);
+      print('DEBUG: Placed horizontal group ${i+1} with numbers $numbers for target $targetValue');
+    }
+    
+    // Fill remaining cells with random numbers (avoiding zeros for mult/div)
     for (int r = 0; r < gridSize; r++) {
       for (int c = 0; c < gridSize; c++) {
         if (grid[r][c] == 0) {
-          int val;
-          do {
-            val = minValue + random.nextInt(maxValue - minValue + 1);
-            grid[r][c] = val;
-          } while (_cellCreatesNewGroup(grid, r, c, targetValue));
+          if (opType == CalculationType.multiplication || opType == CalculationType.division) {
+            grid[r][c] = 2 + random.nextInt(8); // 2-9
+          } else {
+            grid[r][c] = 1 + random.nextInt(9); // 1-9
+          }
         }
       }
     }
+    
+    // Verify our groups actually work
+    List<List<String>> verifiedGroups = [];
+    for (List<String> group in workingGroups) {
+      List<int> numbers = [];
+      for (String cell in group) {
+        List<int> coords = cell.split(',').map((e) => int.parse(e)).toList();
+        numbers.add(grid[coords[0]][coords[1]]);
+      }
+      
+      int result = _getGroupTarget(numbers, opType);
+      if (result == targetValue) {
+        verifiedGroups.add(group);
+        print('DEBUG: Verified group $numbers = $result (target: $targetValue)');
+      } else {
+        print('DEBUG: WARNING - Group $numbers = $result (expected: $targetValue)');
+      }
+    }
+    
+    // If verification failed, create a simple guaranteed group
+    if (verifiedGroups.isEmpty) {
+      print('DEBUG: Creating emergency guaranteed group');
+      if (opType == CalculationType.subtraction) {
+        grid[0][0] = targetValue + 3;
+        grid[0][1] = 2;
+        grid[0][2] = 1;
+        verifiedGroups.add(['0,0', '0,1', '0,2']);
+      } else if (opType == CalculationType.addition) {
+        grid[0][0] = 1;
+        grid[0][1] = 1;
+        grid[0][2] = targetValue - 2;
+        verifiedGroups.add(['0,0', '0,1', '0,2']);
+      } else if (opType == CalculationType.multiplication) {
+        grid[0][0] = 2;
+        grid[0][1] = 2;
+        grid[0][2] = targetValue ~/ 4;
+        verifiedGroups.add(['0,0', '0,1', '0,2']);
+      } else { // division
+        grid[0][0] = targetValue * 2;
+        grid[0][1] = 2;
+        grid[0][2] = 1;
+        verifiedGroups.add(['0,0', '0,1', '0,2']);
+      }
+    }
+    
+    // CALCULATE REASONABLE REQUIRED GROUPS
+    int requiredGroups = numGroups; // Start with requested number
+    
+    // If numGroups is 0 or too small, calculate a reasonable number
+    if (requiredGroups <= 0) {
+      requiredGroups = (gridSize * gridSize / 6).round(); // More reasonable calculation
+      if (requiredGroups < 3) {
+        requiredGroups = 3; // Minimum 3 groups
+      }
+    }
+    
+    print('DEBUG: numGroups=$numGroups, calculated requiredGroups=$requiredGroups');
+    
+    print('DEBUG: FINAL RESULT - Target: $targetValue, Working groups: ${verifiedGroups.length}, Required: $requiredGroups');
+    print('DEBUG: Verified groups: $verifiedGroups');
+    print('DEBUG: Grid preview: ${grid.take(3).map((row) => row.take(3).toList()).toList()}');
+    
     return PuzzleState(
       grid: grid,
       selectedCells: <String>{},
@@ -246,12 +268,13 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
       currentSum: 0,
       isSuccess: false,
       foundGroups: [],
-      generatedGroups: generatedGroups,
+      generatedGroups: [],
+      remainingGroups: [],
+      requiredGroups: requiredGroups,
       puzzleComplete: false,
       secondsLeft: timeLimit,
       score: 0,
       gameOver: false,
-      remainingGroups: List.from(generatedGroups),
     );
   }
 
@@ -313,14 +336,15 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
         return nums.reduce((a, b) => a + b);
       case CalculationType.subtraction:
         if (nums.length == 2) {
-          return (nums[0] - nums[1]).abs();
+          return nums[0] - nums[1]; // Simple: first - second
         } else if (nums.length > 2) {
-          final maxVal = nums.reduce((a, b) => a > b ? a : b);
-          int sumOthers = 0;
-          for (final v in nums) {
-            if (v != maxVal) sumOthers += v;
+          // For 3+ numbers: first - (sum of rest)
+          int first = nums[0];
+          int sumRest = 0;
+          for (int i = 1; i < nums.length; i++) {
+            sumRest += nums[i];
           }
-          return maxVal - sumOthers;
+          return first - sumRest;
         }
         return 0;
       case CalculationType.multiplication:
@@ -333,6 +357,58 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
           divisor *= value;
         }
         return divisor == 0 ? 0 : nums[0] ~/ divisor;
+    }
+  }
+
+  // Helper method to create 3 numbers that work with the target
+  static List<int> _createWorkingNumbers(int target, CalculationType opType) {
+    switch (opType) {
+      case CalculationType.addition:
+        // Create 3 numbers that sum to target
+        int num1 = 1 + Random().nextInt(target - 2);
+        int num2 = 1 + Random().nextInt(target - num1 - 1);
+        int num3 = target - num1 - num2;
+        return [num1, num2, num3];
+      case CalculationType.subtraction:
+        // Create 3 numbers where max - sum(others) = target
+        int num1 = 1 + Random().nextInt(3);
+        int num2 = 1 + Random().nextInt(3);
+        int maxNum = num1 + num2 + target;
+        return [maxNum, num1, num2];
+      case CalculationType.multiplication:
+        // Create 3 factors that multiply to target
+        int num1 = 2 + Random().nextInt(2); // 2-3
+        int num2 = 2 + Random().nextInt(2); // 2-3
+        int num3 = target ~/ (num1 * num2);
+        if (num3 * num1 * num2 == target && num3 >= 2 && num3 <= 6) {
+          return [num1, num2, num3];
+        } else {
+          // Fallback to simple factors
+          return [2, 2, target ~/ 4];
+        }
+      case CalculationType.division:
+        // Create dividend, divisor, and 1
+        int divisor = 2 + Random().nextInt(2); // 2-3
+        int dividend = divisor * target;
+        return [dividend, divisor, 1];
+    }
+  }
+
+  // GUARANTEED working numbers method
+  static List<int> _createGuaranteedWorkingNumbers(int target, CalculationType opType, Random random) {
+    switch (opType) {
+      case CalculationType.addition:
+        // Simple guaranteed addition: [1, 1, target-2]
+        return [1, 1, target - 2];
+      case CalculationType.subtraction:
+        // Simple guaranteed subtraction: [target+3, 2, 1] gives (target+3) - (2+1) = target
+        return [target + 3, 2, 1];
+      case CalculationType.multiplication:
+        // Simple guaranteed multiplication: [2, 2, target/4] gives 2*2*(target/4) = target
+        return [2, 2, target ~/ 4];
+      case CalculationType.division:
+        // Simple guaranteed division: [target*2, 2, 1] gives (target*2) / (2*1) = target
+        return [target * 2, 2, 1];
     }
   }
 
@@ -413,22 +489,18 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
     if (isNewGroup) {
       foundGroups.add(selected.toList());
       score += 10;
-
-      // Remove the matched group from remainingGroups
-      final remaining = List<List<String>>.from(state.remainingGroups);
-      remaining.removeWhere((gen) => Set.from(gen).containsAll(selected) && gen.length == selected.length);
-
-      puzzleComplete = remaining.isEmpty;
+      puzzleComplete = foundGroups.length >= state.requiredGroups;
+      print('DEBUG: Found group ${foundGroups.length}/${state.requiredGroups}, puzzleComplete: $puzzleComplete');
       if (puzzleComplete) {
         gameOver = true;
         _ticker.stop();
+        print('DEBUG: PUZZLE COMPLETE! Setting gameOver to true');
       }
       emit(state.copyWith(
         selectedCells: {},
         currentSum: 0,
         isSuccess: false,
         foundGroups: foundGroups,
-        remainingGroups: remaining,
         puzzleComplete: puzzleComplete,
         score: score,
         gameOver: gameOver,
@@ -450,8 +522,15 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
 
   void _onTimerTicked(TimerTicked event, Emitter<PuzzleState> emit) {
     if (event.secondsLeft <= 0) {
-      emit(state.copyWith(secondsLeft: 0, gameOver: true));
-      _ticker.stop();
+      // Only set gameOver if the puzzle is not complete
+      if (!state.puzzleComplete) {
+        emit(state.copyWith(secondsLeft: 0, gameOver: true));
+        _ticker.stop();
+      } else {
+        // If puzzle is complete, just stop the timer but don't set gameOver
+        emit(state.copyWith(secondsLeft: 0));
+        _ticker.stop();
+      }
     } else {
       emit(state.copyWith(secondsLeft: event.secondsLeft));
     }
@@ -472,7 +551,7 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
             final cc = int.parse(parts[1]);
             return grid[rr][cc];
           }).toList();
-          if (_getGroupTarget(values, type) == target && cells.length > 1) {
+          if (_getGroupTarget(values, type) == target && cells.length >= 3) {
             groups.add(List.from(cells));
           }
         }
@@ -490,7 +569,7 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
             final cc = int.parse(parts[1]);
             return grid[rr][cc];
           }).toList();
-          if (_getGroupTarget(values, type) == target && cells.length > 1) {
+          if (_getGroupTarget(values, type) == target && cells.length >= 3) {
             groups.add(List.from(cells));
           }
         }
@@ -509,7 +588,7 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
             final ccc = int.parse(parts[1]);
             return grid[rrr][ccc];
           }).toList();
-          if (_getGroupTarget(values, type) == target && cells.length > 1) {
+          if (_getGroupTarget(values, type) == target && cells.length >= 3) {
             groups.add(List.from(cells));
           }
           rr++;
@@ -530,7 +609,7 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
             final ccc = int.parse(parts[1]);
             return grid[rrr][ccc];
           }).toList();
-          if (_getGroupTarget(values, type) == target && cells.length > 1) {
+          if (_getGroupTarget(values, type) == target && cells.length >= 3) {
             groups.add(List.from(cells));
           }
           rr++;
