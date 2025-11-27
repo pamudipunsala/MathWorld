@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 // Add imports for the puzzle page and BLoC provider
 import 'presentation/pages/puzzle_page.dart';
 import 'presentation/pages/calculation_type_selection_page.dart';
+import 'presentation/pages/splash_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 void main() {
@@ -16,11 +17,12 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Math Puzzle',
+      debugShowCheckedModeBanner: false, // Remove debug banner
       theme: ThemeData(
         primarySwatch: Colors.blue,
         // TODO: Use app_constants for theme if available
       ),
-      home: const CalculationTypeSelectionPage(),
+      home: const SplashScreen(),
     );
   }
 }

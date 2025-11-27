@@ -10,14 +10,18 @@ class CalculationTypeSelectionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.height < 600;
+    final isLargeScreen = screenSize.height > 800;
+    
     return Scaffold(
       backgroundColor: const Color(0xFF2D3A2E), // Chalkboard green
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 16),
+            SizedBox(height: isSmallScreen ? 8 : 16),
             AnimatedTitle(),
-            const SizedBox(height: 24),
+            SizedBox(height: isSmallScreen ? 16 : 24),
             Expanded(
               child: Center(
                 child: AnimatedMenuButtons(),
@@ -25,15 +29,15 @@ class CalculationTypeSelectionPage extends StatelessWidget {
             ),
             // Wood trim at the bottom
             Container(
-              height: 24,
+              height: isSmallScreen ? 16 : 24,
               decoration: BoxDecoration(
                 color: Colors.brown.shade800,
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
             Container(
-              height: 18,
-              margin: const EdgeInsets.only(top: 8),
+              height: isSmallScreen ? 12 : 18,
+              margin: EdgeInsets.only(top: isSmallScreen ? 4 : 8),
               decoration: BoxDecoration(
                 color: Colors.brown.shade700,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
@@ -91,21 +95,30 @@ class _AnimatedTitleState extends State<AnimatedTitle> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.height < 600;
+    final isLargeScreen = screenSize.height > 800;
+    final fontSize = isSmallScreen ? 24.0 : (isLargeScreen ? 48.0 : 36.0);
+    final topPadding = isSmallScreen ? 40.0 : (isLargeScreen ? 120.0 : 100.0);
+    
     return AnimatedBuilder(
       animation: _glow,
       builder: (context, child) {
         return Padding(
-          padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+          padding: EdgeInsets.only(
+            top: isSmallScreen ? 4.0 : 0.0, 
+            bottom: isSmallScreen ? 4.0 : 8.0
+          ),
           child: Column(
             children: [
-              SizedBox(height: 100),
+              SizedBox(height: topPadding),
               Text(
                 'SELECT CALCULATION',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.permanentMarker(
                   textStyle: TextStyle(
                     color: Colors.white,
-                    fontSize: 36,
+                    fontSize: fontSize,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 2,
                     shadows: [
@@ -206,16 +219,22 @@ class _Animated3DButtonState extends State<Animated3DButton> with SingleTickerPr
         widget.onTap();
       },
       onTapCancel: () => setState(() => _tapScale = 1.0),
-      child: AnimatedScale(
-        scale: _tapScale,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-        child: RotationTransition(
-          turns: _swingAnimation,
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            width: 260,
-            height: 60,
+              child: AnimatedScale(
+          scale: _tapScale,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          child: RotationTransition(
+            turns: _swingAnimation,
+            child: Container(
+              margin: EdgeInsets.symmetric(vertical: 12),
+              width: MediaQuery.of(context).size.width * 0.8, // 80% of screen width
+              height: MediaQuery.of(context).size.height * 0.08, // 8% of screen height
+              constraints: BoxConstraints(
+                maxWidth: 300,
+                minWidth: 200,
+                maxHeight: 80,
+                minHeight: 50,
+              ),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
@@ -244,7 +263,7 @@ class _Animated3DButtonState extends State<Animated3DButton> with SingleTickerPr
                 style: GoogleFonts.permanentMarker(
                   textStyle: TextStyle(
                     color: Colors.brown.shade900,
-                    fontSize: 22,
+                    fontSize: MediaQuery.of(context).size.width * 0.05, // 5% of screen width
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.5,
                     shadows: [
@@ -371,12 +390,41 @@ class LevelSelectionPage extends StatelessWidget {
       : levels = List.generate(10, (i) {
           int gridSize = 5 + (i ~/ 2); // 5,5,6,6,7,7,8,8,9,9
           int numGroups = (gridSize * gridSize / 3).round(); // More groups for larger grids
-          int timeLimit = max(45, (gridSize * numGroups * 0.5).round());
+          // AGGRESSIVE FIX: ALWAYS HAVE REASONABLE GROUPS
+          if (numGroups <= 0 || numGroups > 20) {
+            numGroups = (gridSize * gridSize / 4).round(); // More conservative
+          }
+          if (numGroups < 3) {
+            numGroups = 3; // Minimum 3 groups
+          }
+          if (numGroups > 15) {
+            numGroups = 15; // Maximum 15 groups
+          }
+          
+          print('DEBUG LEVEL: Level ${i+1}, gridSize=$gridSize, numGroups=$numGroups, type=$calculationType');
+          
+          // REDUCED TIME FOR HIGHER LEVELS - MORE CHALLENGING
+          int baseTime = (gridSize * numGroups * 0.3).round(); // Reduced multiplier from 0.5 to 0.3
+          int timeLimit = max(20, baseTime); // Reduced minimum from 30 to 20
+          
+          // Additional time reduction for higher levels
+          if (i >= 5) { // Levels 6-10
+            timeLimit = (timeLimit * 0.7).round(); // 30% less time
+          }
+          if (i >= 8) { // Levels 9-10
+            timeLimit = (timeLimit * 0.8).round(); // Additional 20% less time
+          }
+          
+          // Ensure minimum time
+          timeLimit = max(15, timeLimit); // Minimum 15 seconds
+          
+          print('DEBUG LEVEL: Level ${i+1}, gridSize=$gridSize, numGroups=$numGroups, timeLimit=${timeLimit}s, type=$calculationType');
+          
           // RESPECT USER'S CHOICE - don't override calculation type
           return Level(
             gridSize: gridSize,
             numGroups: numGroups,
-            timeLimit: timeLimit > 20 ? timeLimit : 20,
+            timeLimit: timeLimit,
             type: calculationType, // Use user's selected type
             levelNumber: i + 1,
           );
@@ -385,23 +433,37 @@ class LevelSelectionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.height < 600;
+    final isLargeScreen = screenSize.height > 800;
+    final crossAxisCount = screenSize.width > 600 ? 3 : 2; // 3 columns on tablets
+    
     return Scaffold(
       backgroundColor: const Color(0xFF2D3A2E),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text('Select Level', style: GoogleFonts.permanentMarker(color: Colors.white)),
+        title: Text(
+          'Select Level', 
+          style: GoogleFonts.permanentMarker(
+            color: Colors.white,
+            fontSize: isSmallScreen ? 18 : 24,
+          )
+        ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+        padding: EdgeInsets.symmetric(
+          vertical: isSmallScreen ? 16 : 24, 
+          horizontal: isSmallScreen ? 8 : 12
+        ),
         child: GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 1.2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: isSmallScreen ? 1.0 : 1.2,
+            crossAxisSpacing: isSmallScreen ? 8 : 16,
+            mainAxisSpacing: isSmallScreen ? 8 : 16,
           ),
           itemCount: levels.length,
           itemBuilder: (context, index) {
@@ -416,8 +478,14 @@ class LevelSelectionPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(18),
                   side: BorderSide(color: Colors.brown.shade700, width: 3),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                textStyle: GoogleFonts.permanentMarker(fontSize: 22, fontWeight: FontWeight.bold),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isSmallScreen ? 4 : 8, 
+                  vertical: isSmallScreen ? 4 : 8
+                ),
+                textStyle: GoogleFonts.permanentMarker(
+                  fontSize: isSmallScreen ? 16 : 22, 
+                  fontWeight: FontWeight.bold
+                ),
               ),
               onPressed: () {
                 Navigator.push(
@@ -433,10 +501,25 @@ class LevelSelectionPage extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Level ${level.levelNumber}', style: GoogleFonts.permanentMarker(fontSize: 24)),
-                  const SizedBox(height: 6),
-                  Text('Grid: ${level.gridSize}x${level.gridSize}', style: GoogleFonts.permanentMarker(fontSize: 16)),
-                  Text('Time: ${level.timeLimit}s', style: GoogleFonts.permanentMarker(fontSize: 16)),
+                  Text(
+                    'Level ${level.levelNumber}', 
+                    style: GoogleFonts.permanentMarker(
+                      fontSize: isSmallScreen ? 18 : 24
+                    )
+                  ),
+                  SizedBox(height: isSmallScreen ? 4 : 6),
+                  Text(
+                    'Grid: ${level.gridSize}x${level.gridSize}', 
+                    style: GoogleFonts.permanentMarker(
+                      fontSize: isSmallScreen ? 12 : 16
+                    )
+                  ),
+                  Text(
+                    'Time: ${level.timeLimit}s', 
+                    style: GoogleFonts.permanentMarker(
+                      fontSize: isSmallScreen ? 12 : 16
+                    )
+                  ),
                 ],
               ),
             );

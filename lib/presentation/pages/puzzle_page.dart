@@ -25,24 +25,41 @@ class PuzzlePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.height < 600;
+    final isLargeScreen = screenSize.height > 800;
+    final isTablet = screenSize.width > 600;
+    
     return BlocProvider(
       create: (_) => PuzzleBloc(calculationType: calculationType, level: level),
       child: Scaffold(
         backgroundColor: const Color(0xFF2D3A2E), // Chalkboard green
         // Remove the AppBar
         body: SafeArea(
+          bottom: false, // Don't add bottom safe area padding
           child: Column(
             children: [
+              // Add bottom padding to prevent content from being cut off
+              SizedBox(height: MediaQuery.of(context).padding.bottom),
               Padding(
-                padding: const EdgeInsets.only(top: 16, left: 8, right: 8, bottom: 8),
+                padding: EdgeInsets.only(
+                  top: isSmallScreen ? 8 : 16, 
+                  left: isSmallScreen ? 4 : 8, 
+                  right: isSmallScreen ? 4 : 8, 
+                  bottom: isSmallScreen ? 4 : 8
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
+                      icon: Icon(
+                        Icons.arrow_back, 
+                        color: Colors.white, 
+                        size: isSmallScreen ? 24 : 30
+                      ),
                       onPressed: () => Navigator.of(context).maybePop(),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: isSmallScreen ? 4 : 8),
                     Expanded(
                       child: Center(
                         child: Text(
@@ -50,7 +67,7 @@ class PuzzlePage extends StatelessWidget {
                           style: GoogleFonts.permanentMarker(
                             textStyle: TextStyle(
                               color: Colors.white,
-                              fontSize: 32,
+                              fontSize: isSmallScreen ? 24 : (isLargeScreen ? 40 : 32),
                               fontWeight: FontWeight.bold,
                               letterSpacing: 2,
                               shadows: [
@@ -71,22 +88,25 @@ class PuzzlePage extends StatelessWidget {
               BlocBuilder<PuzzleBloc, PuzzleState>(
                 builder: (context, state) {
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isSmallScreen ? 12.0 : 16.0, 
+                      vertical: isSmallScreen ? 2 : 4
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('⏰ ${state.secondsLeft}s',
                             style: GoogleFonts.permanentMarker(
-                              textStyle: const TextStyle(
+                              textStyle: TextStyle(
                                 color: Colors.white,
-                                fontSize: 20,
+                                fontSize: isSmallScreen ? 16 : 20,
                               ),
                             )),
                         Text('Score: ${state.score}',
                             style: GoogleFonts.permanentMarker(
-                              textStyle: const TextStyle(
+                              textStyle: TextStyle(
                                 color: Colors.amber,
-                                fontSize: 20,
+                                fontSize: isSmallScreen ? 16 : 20,
                               ),
                             )),
                       ],
@@ -95,13 +115,13 @@ class PuzzlePage extends StatelessWidget {
                 },
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 2.0 : 4.0),
                 child: Text(
                   'Operation: ${getOperationSymbol()}',
                   style: GoogleFonts.permanentMarker(
-                    textStyle: const TextStyle(
+                    textStyle: TextStyle(
                       color: Colors.white,
-                      fontSize: 22,
+                      fontSize: isSmallScreen ? 16 : (isLargeScreen ? 28 : 22),
                     ),
                   ),
                 ),
@@ -111,16 +131,16 @@ class PuzzlePage extends StatelessWidget {
                   return Text(
                     'Target: ${state.targetSum}',
                     style: GoogleFonts.permanentMarker(
-                      textStyle: const TextStyle(
+                      textStyle: TextStyle(
                         color: Colors.amber,
-                        fontSize: 26,
+                        fontSize: isSmallScreen ? 20 : (isLargeScreen ? 32 : 26),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   );
                 },
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: isSmallScreen ? 4 : 8),
               Expanded(
                 child: BlocBuilder<PuzzleBloc, PuzzleState>(
                   builder: (context, state) {
@@ -131,7 +151,7 @@ class PuzzlePage extends StatelessWidget {
                           : const LoseMessage();
                     }
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 4.0 : 8.0),
                       child: GridView.builder(
                         physics: const NeverScrollableScrollPhysics(),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -147,7 +167,7 @@ class PuzzlePage extends StatelessWidget {
                           final isSelected = state.selectedCells.contains(key);
                           final isFound = state.foundGroups.any((g) => g.contains(key));
                           return Padding(
-                            padding: const EdgeInsets.all(4.0),
+                            padding: EdgeInsets.all(isSmallScreen ? 2.0 : 4.0),
                             child: GestureDetector(
                               onTap: () {
                                 context.read<PuzzleBloc>().add(CellToggled(row, col));
@@ -185,7 +205,7 @@ class PuzzlePage extends StatelessWidget {
                                         color: isFound
                                             ? Colors.white
                                             : Colors.brown.shade900,
-                                        fontSize: 26,
+                                        fontSize: isSmallScreen ? 18 : (isLargeScreen ? 32 : 26),
                                         fontWeight: FontWeight.bold,
                                         shadows: [
                                           Shadow(
@@ -207,36 +227,38 @@ class PuzzlePage extends StatelessWidget {
                   },
                 ),
               ),
+              // BOTTOM SECTION OUTSIDE EXPANDED
               BlocBuilder<PuzzleBloc, PuzzleState>(
                 builder: (context, state) {
                   return Padding(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: EdgeInsets.all(isSmallScreen ? 0.0 : 6.0),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Groups found: ${state.foundGroups.length}/${state.generatedGroups.length}',
+                          'Groups found: ${state.foundGroups.length}',
                           style: GoogleFonts.permanentMarker(
-                            textStyle: const TextStyle(
+                            textStyle: TextStyle(
                               color: Colors.white,
-                              fontSize: 18,
+                              fontSize: isSmallScreen ? 14 : 18,
                             ),
                           ),
                         ),
                         if (state.puzzleComplete && !state.gameOver)
                           Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
+                            padding: EdgeInsets.only(top: isSmallScreen ? 4.0 : 8.0),
                             child: Text(
                               'Puzzle Complete! 🎉',
                               style: GoogleFonts.permanentMarker(
-                                textStyle: const TextStyle(
+                                textStyle: TextStyle(
                                   color: Colors.amber,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 22,
+                                  fontSize: isSmallScreen ? 16 : (isLargeScreen ? 28 : 22),
                                 ),
                               ),
                             ),
                           ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: isSmallScreen ? 2 : 8),
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.brown.shade700,
@@ -244,17 +266,22 @@ class PuzzlePage extends StatelessWidget {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                            textStyle: GoogleFonts.permanentMarker(fontSize: 18),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isSmallScreen ? 24 : 32, 
+                              vertical: isSmallScreen ? 8 : 12
+                            ),
+                            textStyle: GoogleFonts.permanentMarker(
+                              fontSize: isSmallScreen ? 14 : 18
+                            ),
                           ),
                           onPressed: () {
                             context.read<PuzzleBloc>().add(PuzzleReset());
                           },
                           child: const Text('Reset'),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: isSmallScreen ? 8 : 12),
                         Container(
-                          height: 24,
+                          height: isSmallScreen ? 16 : 24,
                           decoration: BoxDecoration(
                             color: Colors.brown.shade800,
                             borderRadius: BorderRadius.circular(8),
@@ -262,8 +289,8 @@ class PuzzlePage extends StatelessWidget {
                         ),
                         // Wood trim at the bottom
                         Container(
-                          height: 18,
-                          margin: const EdgeInsets.only(top: 8),
+                          height: isSmallScreen ? 12 : 18,
+                          margin: EdgeInsets.only(top: isSmallScreen ? 4 : 8),
                           decoration: BoxDecoration(
                             color: Colors.brown.shade700,
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
@@ -318,6 +345,12 @@ class _WinCelebrationState extends State<WinCelebration> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.height < 600;
+    final isLargeScreen = screenSize.height > 800;
+    final fontSize = isSmallScreen ? 16.0 : (isLargeScreen ? 40.0 : 32.0);
+    final emojiSize = isSmallScreen ? 32.0 : (isLargeScreen ? 64.0 : 48.0);
+    
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -343,16 +376,16 @@ class _WinCelebrationState extends State<WinCelebration> with SingleTickerProvid
                   textStyle: TextStyle(
                     color: Colors.amber,
                     fontWeight: FontWeight.bold,
-                    fontSize: 32,
+                    fontSize: fontSize,
                     letterSpacing: 1.5,
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: isSmallScreen ? 4 : 8),
               ScaleTransition(
                 scale: Tween<double>(begin: 0.7, end: 1.2)
                     .animate(CurvedAnimation(parent: _textController, curve: Curves.elasticOut)),
-                child: const Text('🎉', style: TextStyle(fontSize: 48)),
+                child: Text('🎉', style: TextStyle(fontSize: emojiSize)),
               ),
             ],
           ),
@@ -398,6 +431,12 @@ class _LoseMessageState extends State<LoseMessage> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.height < 600;
+    final isLargeScreen = screenSize.height > 800;
+    final fontSize = isSmallScreen ? 20.0 : (isLargeScreen ? 40.0 : 32.0);
+    final emojiSize = isSmallScreen ? 28.0 : (isLargeScreen ? 56.0 : 40.0);
+    
     return Center(
       child: ScaleTransition(
         scale: _scale,
@@ -423,16 +462,16 @@ class _LoseMessageState extends State<LoseMessage> with TickerProviderStateMixin
                     'You Lose!\nTime Up!',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.permanentMarker(
-                      textStyle: const TextStyle(
+                      textStyle: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 32,
+                        fontSize: fontSize,
                         letterSpacing: 1.5,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text('⏰', style: TextStyle(fontSize: 40)), // Emoji not masked
+                SizedBox(height: isSmallScreen ? 4 : 8),
+                Text('⏰', style: TextStyle(fontSize: emojiSize)), // Emoji not masked
               ],
             );
           },

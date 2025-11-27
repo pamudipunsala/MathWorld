@@ -126,6 +126,7 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
   late final Ticker _ticker;
 
   PuzzleBloc({required this.calculationType, this.level}) : super(_initialState(calculationType, level)) {
+    print('DEBUG: PuzzleBloc created with calculationType=$calculationType, level=${level?.levelNumber}');
     on<CellToggled>(_onCellToggled);
     on<PuzzleReset>(_onPuzzleReset);
     on<TimerTicked>(_onTimerTicked);
@@ -170,21 +171,63 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
     List<List<String>> workingGroups = [];
     int groupsToPlace = numGroups;
     
-    // Place horizontal groups first
+    // Place groups randomly throughout the grid
     for (int i = 0; i < groupsToPlace && i < gridSize; i++) {
-      int row = i;
-      int col = 0;
+      // Try to find a random position for this group
+      bool placed = false;
+      int attempts = 0;
       
-      // Create 3 numbers that definitely work
-      List<int> numbers = _createGuaranteedWorkingNumbers(targetValue, opType, random);
+      while (!placed && attempts < 20) {
+        attempts++;
+        
+        // Random position
+        int row = random.nextInt(gridSize);
+        int col = random.nextInt(gridSize - 2);
+        
+        // Check if space is available
+        bool canPlace = true;
+        for (int j = 0; j < 3; j++) {
+          if (grid[row][col + j] != 0) {
+            canPlace = false;
+            break;
+          }
+        }
+        
+        if (canPlace) {
+          // Create 3 numbers that definitely work
+          List<int> numbers = _createGuaranteedWorkingNumbers(targetValue, opType, random);
+          
+          // Place them horizontally at random position
+          grid[row][col] = numbers[0];
+          grid[row][col + 1] = numbers[1];
+          grid[row][col + 2] = numbers[2];
+          
+          workingGroups.add(['$row,$col', '$row,${col+1}', '$row,${col+2}']);
+          print('DEBUG: Placed random group ${i+1} at row=$row,col=$col with numbers $numbers for target $targetValue');
+          placed = true;
+        }
+      }
       
-      // Place them horizontally
-      grid[row][col] = numbers[0];
-      grid[row][col + 1] = numbers[1];
-      grid[row][col + 2] = numbers[2];
-      
-      workingGroups.add(['$row,$col', '$row,${col+1}', '$row,${col+2}']);
-      print('DEBUG: Placed horizontal group ${i+1} with numbers $numbers for target $targetValue');
+      // If couldn't place randomly, place in first available spot
+      if (!placed) {
+        int row = i;
+        int col = 0;
+        
+        // Find first available spot
+        while (col < gridSize - 2 && (grid[row][col] != 0 || grid[row][col + 1] != 0 || grid[row][col + 2] != 0)) {
+          col++;
+        }
+        
+        if (col < gridSize - 2) {
+          List<int> numbers = _createGuaranteedWorkingNumbers(targetValue, opType, random);
+          grid[row][col] = numbers[0];
+          grid[row][col + 1] = numbers[1];
+          grid[row][col + 2] = numbers[2];
+          
+          workingGroups.add(['$row,$col', '$row,${col+1}', '$row,${col+2}']);
+          print('DEBUG: Placed fallback group ${i+1} at row=$row,col=$col with numbers $numbers for target $targetValue');
+        }
+      }
     }
     
     // Fill remaining cells with random numbers (avoiding zeros for mult/div)
@@ -244,22 +287,51 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
       }
     }
     
-    // CALCULATE REASONABLE REQUIRED GROUPS
+    // AGGRESSIVE FIX: ALWAYS HAVE REASONABLE REQUIRED GROUPS
     int requiredGroups = numGroups; // Start with requested number
     
-    // If numGroups is 0 or too small, calculate a reasonable number
-    if (requiredGroups <= 0) {
-      requiredGroups = (gridSize * gridSize / 6).round(); // More reasonable calculation
-      if (requiredGroups < 3) {
-        requiredGroups = 3; // Minimum 3 groups
-      }
+    print('DEBUG: Initial numGroups=$numGroups, gridSize=$gridSize, opType=$opType');
+    
+    // FORCE REASONABLE GROUPS - IGNORE ANY ZERO VALUES
+    if (requiredGroups <= 0 || requiredGroups > 20) {
+      // Calculate based on grid size
+      requiredGroups = (gridSize * gridSize / 4).round(); // More conservative
+      print('DEBUG: numGroups was invalid ($numGroups), calculated requiredGroups=$requiredGroups');
     }
     
-    print('DEBUG: numGroups=$numGroups, calculated requiredGroups=$requiredGroups');
+    // ADJUST TO MATCH ACTUAL AVAILABLE GROUPS
+    if (verifiedGroups.length > 0 && requiredGroups > verifiedGroups.length) {
+      requiredGroups = verifiedGroups.length;
+      print('DEBUG: Adjusted requiredGroups to match available groups: $requiredGroups');
+    }
+    
+    // ABSOLUTE MINIMUM AND MAXIMUM
+    if (requiredGroups < 3) {
+      requiredGroups = 3; // Minimum 3 groups
+      print('DEBUG: Required groups was too small, set to minimum 3');
+    }
+    if (requiredGroups > 15) {
+      requiredGroups = 15; // Maximum 15 groups
+      print('DEBUG: Required groups was too large, set to maximum 15');
+    }
+    
+    print('DEBUG: Final requiredGroups=$requiredGroups (was originally $numGroups)');
     
     print('DEBUG: FINAL RESULT - Target: $targetValue, Working groups: ${verifiedGroups.length}, Required: $requiredGroups');
     print('DEBUG: Verified groups: $verifiedGroups');
     print('DEBUG: Grid preview: ${grid.take(3).map((row) => row.take(3).toList()).toList()}');
+    
+    // EMERGENCY FIX: FORCE REASONABLE GROUPS FOR ALL OPERATIONS
+    if (requiredGroups <= 0 || requiredGroups > 20) {
+      requiredGroups = 6; // Force a reasonable number
+      print('DEBUG: EMERGENCY FIX - requiredGroups was $requiredGroups, forced to 6');
+    }
+    
+    // FINAL GUARANTEE: NEVER ALLOW 0
+    if (requiredGroups == 0) {
+      requiredGroups = 6;
+      print('DEBUG: FINAL EMERGENCY - requiredGroups was 0, forced to 6');
+    }
     
     return PuzzleState(
       grid: grid,
@@ -404,11 +476,17 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
         // Simple guaranteed subtraction: [target+3, 2, 1] gives (target+3) - (2+1) = target
         return [target + 3, 2, 1];
       case CalculationType.multiplication:
-        // Simple guaranteed multiplication: [2, 2, target/4] gives 2*2*(target/4) = target
-        return [2, 2, target ~/ 4];
+        // Simple guaranteed multiplication: use factors that definitely multiply to target
+        if (target == 4) return [2, 2, 1]; // 2*2*1 = 4
+        if (target == 5) return [5, 1, 1]; // 5*1*1 = 5
+        if (target == 6) return [2, 3, 1]; // 2*3*1 = 6
+        if (target == 7) return [7, 1, 1]; // 7*1*1 = 7
+        return [target, 1, 1]; // fallback: target*1*1 = target
       case CalculationType.division:
-        // Simple guaranteed division: [target*2, 2, 1] gives (target*2) / (2*1) = target
-        return [target * 2, 2, 1];
+        // Simple guaranteed division: use numbers that definitely divide to target
+        if (target == 2) return [4, 2, 1]; // 4/(2*1) = 2
+        if (target == 3) return [6, 2, 1]; // 6/(2*1) = 3
+        return [target * 2, 2, 1]; // fallback: (target*2)/(2*1) = target
     }
   }
 
@@ -489,12 +567,17 @@ class PuzzleBloc extends Bloc<PuzzleEvent, PuzzleState> {
     if (isNewGroup) {
       foundGroups.add(selected.toList());
       score += 10;
+      
+      // ENHANCED WIN CONDITION CHECK
       puzzleComplete = foundGroups.length >= state.requiredGroups;
       print('DEBUG: Found group ${foundGroups.length}/${state.requiredGroups}, puzzleComplete: $puzzleComplete');
+      print('DEBUG: Win condition: ${foundGroups.length} >= ${state.requiredGroups} = $puzzleComplete');
+      
       if (puzzleComplete) {
         gameOver = true;
         _ticker.stop();
         print('DEBUG: PUZZLE COMPLETE! Setting gameOver to true');
+        print('DEBUG: Found ${foundGroups.length} groups, required ${state.requiredGroups} groups');
       }
       emit(state.copyWith(
         selectedCells: {},
